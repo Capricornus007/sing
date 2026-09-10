@@ -28,17 +28,35 @@ func syscallPacketBatchRawConnForRead(reader any) syscall.RawConn {
 }
 
 func syscallPacketBatchRawConnForWrite(writer any) syscall.RawConn {
+	var rawConn syscall.RawConn
 	if syscallConn, isSyscallConn := writer.(syscall.Conn); isSyscallConn {
-		rawConn, err := syscallConn.SyscallConn()
-		if err == nil {
-			return rawConn
+		rawConn, _ = syscallConn.SyscallConn()
+	}
+	if rawConn == nil {
+		if ioWriter, isWriter := writer.(io.Writer); isWriter {
+			_, rawConn = N.SyscallConnForWrite(ioWriter)
 		}
 	}
-	if ioWriter, isWriter := writer.(io.Writer); isWriter {
-		_, rawConn := N.SyscallConnForWrite(ioWriter)
-		return rawConn
+	if rawConn == nil {
+		return nil
 	}
-	return nil
+	var isUDP bool
+	err := control.Raw(rawConn, func(fd uintptr) error {
+		socketType, err := unix.GetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_TYPE)
+		if err != nil || socketType != unix.SOCK_DGRAM {
+			return err
+		}
+		localAddr, err := unix.Getsockname(int(fd))
+		if err != nil {
+			return err
+		}
+		isUDP = M.AddrPortFromSockaddr(localAddr).IsValid()
+		return nil
+	})
+	if err != nil || !isUDP {
+		return nil
+	}
+	return rawConn
 }
 
 func syscallPacketBatchPeerDestination(rawConn syscall.RawConn) (M.Socksaddr, bool) {

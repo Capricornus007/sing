@@ -203,10 +203,6 @@ type syscallConnectedPacketBatchWriter struct {
 	msgvec   []msghdrX
 }
 
-func createSyscallPacketBatchWriter(writer any) (N.PacketBatchWriter, bool) {
-	return nil, false
-}
-
 func createSyscallConnectedPacketBatchWriter(writer any) (N.ConnectedPacketBatchWriter, bool) {
 	rawConn := syscallPacketBatchRawConnForWrite(writer)
 	if rawConn == nil {
@@ -245,10 +241,28 @@ func (w *syscallConnectedPacketBatchWriter) WriteConnectedPacketBatch(buffers []
 	writeMsgvec := msgvec
 	maxBatchSize := len(writeMsgvec)
 	var innerErr syscall.Errno
+	var innerErrName string
 	err := w.rawConn.Write(func(fd uintptr) (done bool) {
 		for len(writeMsgvec) > 0 {
 			batchSize := min(maxBatchSize, len(writeMsgvec))
-			n, errno := sendmsgX(int(fd), writeMsgvec[:batchSize], 0)
+			// The connected sendmsg_x path cannot send empty datagrams. Send
+			// those with sendto, batching the nonempty runs without reordering.
+			for index, message := range writeMsgvec[:batchSize] {
+				if message.iovlen == 0 {
+					batchSize = index
+					break
+				}
+			}
+			var n int
+			var errno syscall.Errno
+			syscallName := "sendmsg_x"
+			if batchSize == 0 {
+				syscallName = "sendto"
+				errno = sendto(int(fd), nil, nil, 0)
+				n = 1
+			} else {
+				n, errno = sendmsgX(int(fd), writeMsgvec[:batchSize], 0)
+			}
 			switch {
 			case errno == 0:
 			case errno == syscall.EINTR:
@@ -260,10 +274,12 @@ func (w *syscallConnectedPacketBatchWriter) WriteConnectedPacketBatch(buffers []
 				return false
 			default:
 				innerErr = errno
+				innerErrName = syscallName
 				return true
 			}
 			if n == 0 {
 				innerErr = syscall.EIO
+				innerErrName = syscallName
 				return true
 			}
 			writeMsgvec = writeMsgvec[n:]
@@ -271,7 +287,7 @@ func (w *syscallConnectedPacketBatchWriter) WriteConnectedPacketBatch(buffers []
 		return true
 	})
 	if innerErr != 0 {
-		err = os.NewSyscallError("sendmsg_x", innerErr)
+		err = os.NewSyscallError(innerErrName, innerErr)
 	}
 	return err
 }
