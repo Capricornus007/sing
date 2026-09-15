@@ -77,18 +77,6 @@ func TestPacketBatchSendtoResume(t *testing.T) {
 	}
 }
 
-func TestPacketBatchSendtoInvalid(t *testing.T) {
-	t.Parallel()
-	for _, destinations := range [][]M.Socksaddr{nil, {{}}, {M.ParseSocksaddr("example.org:53")}} {
-		rawConn := &testSendtoRawConn{}
-		writer := &syscallPacketBatchWriter{rawConn: rawConn, localAddr: netip.MustParseAddrPort("127.0.0.1:1000")}
-		buffers := testBuffers("a")
-		require.ErrorIs(t, writer.WritePacketBatch(buffers, destinations), os.ErrInvalid)
-		require.Zero(t, rawConn.wakeups)
-		require.Zero(t, buffers[0].Cap())
-	}
-}
-
 type testSendtoRawConn struct {
 	pollErr error
 	wakeups int

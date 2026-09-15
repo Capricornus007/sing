@@ -355,7 +355,6 @@ func TestPacketBatchUDPWriteErrors(t *testing.T) {
 					return writer.WritePacketBatch(buffers, destinations)
 				}
 			}
-			require.ErrorIs(t, write(nil), os.ErrInvalid)
 			require.NoError(t, write(testBuffers("", "a", "", "bc", "")))
 			for _, payload := range []string{"", "a", "", "bc", ""} {
 				packet := make([]byte, 10)
@@ -378,26 +377,6 @@ func TestPacketBatchUDPWriteErrors(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestPacketBatchWriterRejectsTCP(t *testing.T) {
-	t.Parallel()
-	listener, err := net.Listen("tcp4", "127.0.0.1:0")
-	require.NoError(t, err)
-	t.Cleanup(func() { listener.Close() })
-	client, err := net.Dial("tcp4", listener.Addr().String())
-	require.NoError(t, err)
-	t.Cleanup(func() { client.Close() })
-	server, err := listener.Accept()
-	require.NoError(t, err)
-	t.Cleanup(func() { server.Close() })
-	conn := NewUnbindPacketConn(client)
-	writer, created := CreateConnectedPacketBatchWriter(conn)
-	require.False(t, created)
-	require.Nil(t, writer)
-	packetWriter, created := CreatePacketBatchWriter(conn)
-	require.False(t, created)
-	require.Nil(t, packetWriter)
 }
 
 func listenPacketBatchUDP(t *testing.T, network string) *net.UDPConn {

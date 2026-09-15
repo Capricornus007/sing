@@ -45,9 +45,6 @@ func (w *syscallPacketBatchWriter) writePacketBatch(buffers []*buf.Buffer, desti
 	w.access.Lock()
 	defer w.access.Unlock()
 	defer buf.ReleaseMulti(buffers)
-	if len(buffers) == 0 || len(buffers) != len(destinations) {
-		return os.ErrInvalid
-	}
 	if !w.localAddr.IsValid() {
 		err := control.Raw(w.rawConn, func(fd uintptr) error {
 			name, err := unix.Getsockname(int(fd))
@@ -68,9 +65,6 @@ func (w *syscallPacketBatchWriter) writePacketBatch(buffers []*buf.Buffer, desti
 		w.nameLens = nameLens[:0]
 	}()
 	for index, destination := range destinations {
-		if !destination.IsIP() {
-			return os.ErrInvalid
-		}
 		nameLens[index] = M.AddrPortToRawSockaddrAny(&names[index], destination.AddrPort(), w.localAddr.Addr().Is6())
 	}
 	// Keep the cursor across poller wakeups so a partially sent batch is not replayed.

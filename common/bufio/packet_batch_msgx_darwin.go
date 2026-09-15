@@ -75,6 +75,7 @@ func createSyscallConnectedPacketBatchReadWaiter(reader any, destination M.Socks
 }
 
 func (w *syscallPacketBatchReadWaiter) InitializeReadWaiter(options N.ReadWaitOptions) (needCopy bool) {
+	w.releaseBuffers()
 	if options.BatchSize <= 0 {
 		options.BatchSize = DefaultPacketReadBatchSize
 	}
@@ -113,9 +114,11 @@ func (w *syscallPacketBatchReadWaiter) InitializeReadWaiter(options N.ReadWaitOp
 			case syscall.EINTR:
 				continue
 			case syscall.EAGAIN:
+				w.releaseBuffers()
 				return false
 			default:
 				if errno == syscall.EWOULDBLOCK {
+					w.releaseBuffers()
 					return false
 				}
 				w.readErr = os.NewSyscallError("recvmsg_x", errno)
@@ -139,12 +142,7 @@ func (w *syscallPacketBatchReadWaiter) InitializeReadWaiter(options N.ReadWaitOp
 }
 
 func (w *syscallPacketBatchReadWaiter) WaitReadPackets() (buffers []*buf.Buffer, destinations []M.Socksaddr, err error) {
-	if w.connected {
-		return nil, nil, os.ErrInvalid
-	}
-	if w.readFunc == nil {
-		return nil, nil, os.ErrInvalid
-	}
+	defer w.releaseBuffers()
 	err = w.rawConn.Read(w.readFunc)
 	if err != nil {
 		return
@@ -167,12 +165,7 @@ func (w *syscallPacketBatchReadWaiter) WaitReadPackets() (buffers []*buf.Buffer,
 }
 
 func (w *syscallPacketBatchReadWaiter) WaitReadConnectedPackets() (buffers []*buf.Buffer, destination M.Socksaddr, err error) {
-	if !w.connected {
-		return nil, M.Socksaddr{}, os.ErrInvalid
-	}
-	if w.readFunc == nil {
-		return nil, M.Socksaddr{}, os.ErrInvalid
-	}
+	defer w.releaseBuffers()
 	err = w.rawConn.Read(w.readFunc)
 	if err != nil {
 		return
@@ -218,9 +211,6 @@ func (w *syscallConnectedPacketBatchWriter) WriteConnectedPacketBatch(buffers []
 	w.access.Lock()
 	defer w.access.Unlock()
 	defer buf.ReleaseMulti(buffers)
-	if len(buffers) == 0 {
-		return os.ErrInvalid
-	}
 	iovecs := growSlice(w.iovecs, len(buffers))
 	msgvec := growSlice(w.msgvec, len(buffers))
 	defer func() {

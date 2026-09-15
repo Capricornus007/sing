@@ -14,17 +14,16 @@ import (
 )
 
 func syscallPacketBatchRawConnForRead(reader any) syscall.RawConn {
+	var rawConn syscall.RawConn
 	if syscallConn, isSyscallConn := reader.(syscall.Conn); isSyscallConn {
-		rawConn, err := syscallConn.SyscallConn()
-		if err == nil {
-			return rawConn
+		rawConn, _ = syscallConn.SyscallConn()
+	}
+	if rawConn == nil {
+		if ioReader, isReader := reader.(io.Reader); isReader {
+			_, rawConn = N.SyscallConnForRead(ioReader)
 		}
 	}
-	if ioReader, isReader := reader.(io.Reader); isReader {
-		_, rawConn := N.SyscallConnForRead(ioReader)
-		return rawConn
-	}
-	return nil
+	return rawConn
 }
 
 func syscallPacketBatchRawConnForWrite(writer any) syscall.RawConn {
@@ -37,32 +36,10 @@ func syscallPacketBatchRawConnForWrite(writer any) syscall.RawConn {
 			_, rawConn = N.SyscallConnForWrite(ioWriter)
 		}
 	}
-	if rawConn == nil {
-		return nil
-	}
-	var isUDP bool
-	err := control.Raw(rawConn, func(fd uintptr) error {
-		socketType, err := unix.GetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_TYPE)
-		if err != nil || socketType != unix.SOCK_DGRAM {
-			return err
-		}
-		localAddr, err := unix.Getsockname(int(fd))
-		if err != nil {
-			return err
-		}
-		isUDP = M.AddrPortFromSockaddr(localAddr).IsValid()
-		return nil
-	})
-	if err != nil || !isUDP {
-		return nil
-	}
 	return rawConn
 }
 
 func syscallPacketBatchPeerDestination(rawConn syscall.RawConn) (M.Socksaddr, bool) {
-	if rawConn == nil {
-		return M.Socksaddr{}, false
-	}
 	var destination M.Socksaddr
 	err := control.Raw(rawConn, func(fd uintptr) error {
 		peer, err := unix.Getpeername(int(fd))
