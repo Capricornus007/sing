@@ -31,6 +31,10 @@ func dialLoopback(t *testing.T, network string, address string) (netip.AddrPort,
 	return M.AddrPortFromNet(conn.LocalAddr()), M.AddrPortFromNet(conn.RemoteAddr())
 }
 
+// LoadExtendedTable 與 procNsiGetParameter.Find 寫的是套件層全域，同套件其他測試也各自
+// 呼叫它們；並行會在這些全域上產生資料競爭，所以這個測試刻意不平行。
+//
+//nolint:paralleltest
 func TestNSITCPConnectionMatchesTable(t *testing.T) {
 	require.NoError(t, LoadExtendedTable())
 	require.NoError(t, procNsiGetParameter.Find())
