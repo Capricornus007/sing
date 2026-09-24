@@ -10,8 +10,7 @@ type TimeoutError interface {
 }
 
 func IsTimeout(err error) bool {
-	var netErr net.Error
-	if errors.As(err, &netErr) {
+	if netErr, ok := errors.AsType[net.Error](err); ok {
 		//nolint:staticcheck
 		return netErr.Temporary() && netErr.Timeout()
 	}

@@ -19,8 +19,7 @@ func UnmarshalExtendedContext[T any](ctx context.Context, content []byte) (T, er
 	if err == nil {
 		return value, err
 	}
-	var syntaxError *SyntaxError
-	if errors.As(err, &syntaxError) {
+	if syntaxError, ok := errors.AsType[*SyntaxError](err); ok {
 		prefix := string(content[:syntaxError.Offset])
 		row := strings.Count(prefix, "\n") + 1
 		column := len(prefix) - strings.LastIndex(prefix, "\n") - 1

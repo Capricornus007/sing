@@ -346,8 +346,9 @@ func DefaultValue[T any]() T {
 	return defaultValue
 }
 
+//go:fix inline
 func Ptr[T any](obj T) *T {
-	return &obj
+	return new(obj)
 }
 
 func Close(closers ...any) error {

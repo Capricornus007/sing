@@ -1,6 +1,8 @@
 package socks
 
 import (
+	"os"
+
 	"github.com/sagernet/sing/common"
 	"github.com/sagernet/sing/common/buf"
 	"github.com/sagernet/sing/common/bufio"
@@ -86,6 +88,12 @@ func (r *lazyAssociatePacketBatchReadWaiter) WaitReadPackets() ([]*buf.Buffer, [
 func (r *lazyAssociatePacketBatchReadWaiter) Upstream() any { return r.reader }
 
 func (w *associatePacketBatchWriter) WritePacketBatch(buffers []*buf.Buffer, destinations []M.Socksaddr) error {
+	// 長度對不上就直接拒收：下面按 index 取 destination，多出來的 buffer 會越界 panic 把整個
+	// 進程帶走；空批次的話交下去只會寫出一個沒有任何報文的 batch，都是不可恢復的用法錯誤。
+	if len(buffers) == 0 || len(buffers) != len(destinations) {
+		buf.ReleaseMulti(buffers)
+		return os.ErrInvalid
+	}
 	for index, buffer := range buffers {
 		destination := destinations[index]
 		headerLen := 3 + M.SocksaddrSerializer.AddrPortLen(destination)
@@ -126,6 +134,12 @@ type lazyAssociatePacketBatchWriter struct {
 }
 
 func (w *lazyAssociatePacketBatchWriter) WritePacketBatch(buffers []*buf.Buffer, destinations []M.Socksaddr) error {
+	// 空批次或長度對不上時必須在握手之前擋掉：HandshakeSuccess 會把 SOCKS5 的 associate
+	// 成功應答寫出去並標記為已完成，等於為一筆都不存在的報文把整個握手消費掉。
+	if len(buffers) == 0 || len(buffers) != len(destinations) {
+		buf.ReleaseMulti(buffers)
+		return os.ErrInvalid
+	}
 	err := w.conn.HandshakeSuccess()
 	if err != nil {
 		buf.ReleaseMulti(buffers)
