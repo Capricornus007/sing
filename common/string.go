@@ -11,11 +11,11 @@ func SubstringAfter(s string, substr string) string {
 }
 
 func SubstringAfterLast(s string, substr string) string {
-	index := strings.LastIndex(s, substr)
-	if index == -1 {
-		return s
+	_, after, found := strings.CutLast(s, substr)
+	if found {
+		return after
 	}
-	return s[index+len(substr):]
+	return s
 }
 
 func SubstringBefore(s string, substr string) string {
@@ -27,11 +27,11 @@ func SubstringBefore(s string, substr string) string {
 }
 
 func SubstringBeforeLast(s string, substr string) string {
-	index := strings.LastIndex(s, substr)
-	if index == -1 {
-		return s
+	before, _, found := strings.CutLast(s, substr)
+	if found {
+		return before
 	}
-	return s[:index]
+	return s
 }
 
 func SubstringBetween(s string, after string, before string) string {
