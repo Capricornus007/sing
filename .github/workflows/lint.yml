@@ -23,12 +23,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - goos: windows
-            goarch: amd64
-          - goos: windows
-            goarch: '386'
-          - goos: windows
-            goarch: arm64
           - goos: linux
             goarch: amd64
           - goos: linux
@@ -37,36 +31,33 @@ jobs:
             goarch: arm
           - goos: linux
             goarch: '386'
-          - goos: darwin
-            goarch: amd64
-          - goos: darwin
-            goarch: arm64
+          # 用戶 2026-10-11 裁：非 Linux/Android 的矩陣目標整條刪
+          # （windows amd64/386/arm64、darwin amd64/arm64、freebsd amd64 已移除）。
           - goos: android
             goarch: arm64
-          - goos: freebsd
-            goarch: amd64
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - name: Setup Go
-        uses: actions/setup-go@v7
-        with:
-          go-version: 1.27.1
+      - name: Install Go from the feed (golang/go master tip)
+        uses: Capricornus007/repo/.github/actions/setup-feed-go@master
       - name: Cache go module
         uses: actions/cache@v6
         with:
           path: |
             ~/go/pkg/mod
           key: go-${{ hashFiles('**/go.sum') }}
+      # 不能用 golangci-lint-action / go install：它釘 x/tools v0.50.0，讀不了 go tip 的
+      # std export data（實測 v0.50 ✗、v0.51 ✓、v0.52 ✓）→ Lint 必紅。換依賴重 build
+      # 的步驟與交叉表在 feed 倉 .github/actions/setup-gcl。
+      - name: Install golangci-lint that reads Go tip export data
+        uses: Capricornus007/repo/.github/actions/setup-gcl@master
+        with:
+          goos: ${{ matrix.goos }}
+          goarch: ${{ matrix.goarch }}
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v9
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-        with:
-          version: latest
-          args: --timeout=30m
-          install-mode: binary
-          verify: false
+        run: golangci-lint run --timeout=30m

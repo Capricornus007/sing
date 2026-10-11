@@ -17,33 +17,23 @@ on:
 
 jobs:
   build:
-    name: ${{ matrix.os-name }} (Go ${{ matrix.go-version }})
+    # Go 由 feed 的 go-git（golang/go master tip）提供，不再由矩陣決定版本，
+    # 所以原本 name 裡的「(Go x.y.z)」去掉，改標平台。
+    name: Linux
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os:
           - ubuntu-latest
-          - macos-latest
-          - windows-latest
-        go-version:
-          - '1.27.1'
-        include:
-          - os: ubuntu-latest
-            os-name: Linux
-          - os: macos-latest
-            os-name: macOS
-          - os: windows-latest
-            os-name: Windows
+          # 用戶 2026-10-11 裁：其他系統整條刪（macos-latest / windows-latest 已移除）。
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - name: Setup Go
-        uses: actions/setup-go@v7
-        with:
-          go-version: ${{ matrix.go-version }}
+      - name: Install Go from the feed (golang/go master tip)
+        uses: Capricornus007/repo/.github/actions/setup-feed-go@master
       - name: Build
         run: |
           make test
