@@ -261,6 +261,7 @@ func (w *syscallPacketBatchWriter) WritePacketBatch(buffers []*buf.Buffer, desti
 	}
 	writeMsgvec := msgvec
 	var innerErr syscall.Errno
+	var messageTooLong bool
 	err := w.rawConn.Write(func(fd uintptr) (done bool) {
 		for len(writeMsgvec) > 0 {
 			n, errno := w.offload.send(int(fd), writeMsgvec, 0)
@@ -270,6 +271,10 @@ func (w *syscallPacketBatchWriter) WritePacketBatch(buffers []*buf.Buffer, desti
 				continue
 			case syscall.EAGAIN:
 				return false
+			case syscall.EMSGSIZE:
+				messageTooLong = true
+				writeMsgvec = writeMsgvec[1:]
+				continue
 			default:
 				if errno == syscall.EWOULDBLOCK {
 					return false
@@ -287,6 +292,8 @@ func (w *syscallPacketBatchWriter) WritePacketBatch(buffers []*buf.Buffer, desti
 	})
 	if innerErr != 0 {
 		err = os.NewSyscallError("sendmmsg", innerErr)
+	} else if err == nil && messageTooLong {
+		err = os.NewSyscallError("sendmmsg", syscall.EMSGSIZE)
 	}
 	return err
 }
@@ -315,6 +322,7 @@ func (w *syscallPacketBatchWriter) WriteConnectedPacketBatch(buffers []*buf.Buff
 	}
 	writeMsgvec := msgvec
 	var innerErr syscall.Errno
+	var messageTooLong bool
 	err := w.rawConn.Write(func(fd uintptr) (done bool) {
 		for len(writeMsgvec) > 0 {
 			n, errno := w.offload.send(int(fd), writeMsgvec, 0)
@@ -324,6 +332,10 @@ func (w *syscallPacketBatchWriter) WriteConnectedPacketBatch(buffers []*buf.Buff
 				continue
 			case syscall.EAGAIN:
 				return false
+			case syscall.EMSGSIZE:
+				messageTooLong = true
+				writeMsgvec = writeMsgvec[1:]
+				continue
 			default:
 				if errno == syscall.EWOULDBLOCK {
 					return false
@@ -341,6 +353,8 @@ func (w *syscallPacketBatchWriter) WriteConnectedPacketBatch(buffers []*buf.Buff
 	})
 	if innerErr != 0 {
 		err = os.NewSyscallError("sendmmsg", innerErr)
+	} else if err == nil && messageTooLong {
+		err = os.NewSyscallError("sendmmsg", syscall.EMSGSIZE)
 	}
 	return err
 }
