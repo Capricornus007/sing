@@ -1,9 +1,8 @@
 package network
 
 import (
-	"testing"
-
 	"net/netip"
+	"testing"
 
 	"github.com/sagernet/sing/common/buf"
 	M "github.com/sagernet/sing/common/metadata"
@@ -19,6 +18,7 @@ import (
 // 10-05 修過（d468ba640）、10-09 吃 upstream/testing 合併又復發、10-10 再修（c1dfeafd）。
 // 所以約束放在**型別這層**：雙重歸還必須是無操作，而且要能被測試抓出來。
 func TestPutPacketBufferTwiceIsNoop(t *testing.T) {
+	t.Parallel()
 	packet := NewPacketBuffer()
 	packet.Buffer = buf.New()
 	packet.Buffer.WriteByte(0x7f)
@@ -39,6 +39,7 @@ func TestPutPacketBufferTwiceIsNoop(t *testing.T) {
 // 歸還過的緩衝不能再被当成有效資料使用：Put 必須把 Buffer 與 Destination 清掉，
 // 這樣呼叫端就算误用，看到的也是明顯的空對象，而不是還帶著上一手內容的實例。
 func TestPutPacketBufferClearsFields(t *testing.T) {
+	t.Parallel()
 	packet := NewPacketBuffer()
 	packet.Buffer = buf.New()
 	packet.Destination = M.SocksaddrFrom(netip.MustParseAddr("127.0.0.1"), 53)
