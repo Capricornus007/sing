@@ -70,6 +70,7 @@ func (w *syscallPacketBatchWriter) writePacketBatch(buffers []*buf.Buffer, desti
 	// Keep the cursor across poller wakeups so a partially sent batch is not replayed.
 	var index int
 	var innerErr syscall.Errno
+	var messageTooLong bool
 	err := w.rawConn.Write(func(fd uintptr) (done bool) {
 		for index < len(buffers) {
 			errno := send(int(fd), buffers[index].Bytes(), &names[index], nameLens[index])
@@ -80,6 +81,9 @@ func (w *syscallPacketBatchWriter) writePacketBatch(buffers []*buf.Buffer, desti
 				continue
 			case syscall.EAGAIN:
 				return false
+			case syscall.EMSGSIZE:
+				messageTooLong = true
+				index++
 			default:
 				if errno == syscall.EWOULDBLOCK {
 					return false
@@ -92,6 +96,8 @@ func (w *syscallPacketBatchWriter) writePacketBatch(buffers []*buf.Buffer, desti
 	})
 	if innerErr != 0 {
 		err = os.NewSyscallError("sendto", innerErr)
+	} else if err == nil && messageTooLong {
+		err = os.NewSyscallError("sendto", syscall.EMSGSIZE)
 	}
 	return err
 }

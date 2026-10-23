@@ -32,10 +32,10 @@ func TestPacketBatchSendtoResume(t *testing.T) {
 		},
 		{
 			name:        "partial_error",
-			errors:      []syscall.Errno{0, syscall.EMSGSIZE},
+			errors:      []syscall.Errno{0, syscall.EACCES},
 			attempts:    []string{"a", "b"},
 			sent:        []string{"a"},
-			wantErr:     syscall.EMSGSIZE,
+			wantErr:     syscall.EACCES,
 			wantWakeups: 1,
 		},
 		{
