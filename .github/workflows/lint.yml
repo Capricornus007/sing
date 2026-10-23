@@ -54,6 +54,8 @@ jobs:
       - name: Install golangci-lint that reads Go tip export data
         uses: Capricornus007/repo/.github/actions/setup-gcl@master
         with:
+          version: v2.15.0
+          xtools: v0.52.0
           goos: ${{ matrix.goos }}
           goarch: ${{ matrix.goarch }}
       - name: golangci-lint
