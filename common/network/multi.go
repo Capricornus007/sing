@@ -75,20 +75,31 @@ func DialParallel(ctx context.Context, dialer Dialer, network string, destinatio
 	type dialResult struct {
 		net.Conn
 		error
+		attempt int
 	}
 	results := make(chan dialResult)
 	returned := make(chan struct{})
 	defer close(returned)
-	dialCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	var (
 		started      int
 		running      int
+		winner       = -1
+		cancels      []context.CancelFunc
 		connErrors   []error
 		attemptDelay <-chan time.Time
 	)
+	defer func() {
+		for attempt, attemptCancel := range cancels {
+			if attempt != winner {
+				attemptCancel()
+			}
+		}
+	}()
 	startAttempt := func() {
-		address := addresses[started]
+		attempt := started
+		address := addresses[attempt]
+		attemptCtx, attemptCancel := context.WithCancel(ctx)
+		cancels = append(cancels, attemptCancel)
 		started++
 		running++
 		if started < len(addresses) {
@@ -97,9 +108,9 @@ func DialParallel(ctx context.Context, dialer Dialer, network string, destinatio
 			attemptDelay = nil
 		}
 		go func() {
-			conn, err := dialer.DialContext(dialCtx, network, M.SocksaddrFrom(address, destination.Port))
+			conn, err := dialer.DialContext(attemptCtx, network, M.SocksaddrFrom(address, destination.Port))
 			select {
-			case results <- dialResult{Conn: conn, error: err}:
+			case results <- dialResult{Conn: conn, error: err, attempt: attempt}:
 			case <-returned:
 				if conn != nil {
 					conn.Close()
@@ -115,6 +126,7 @@ func DialParallel(ctx context.Context, dialer Dialer, network string, destinatio
 		case result := <-results:
 			running--
 			if result.error == nil {
+				winner = result.attempt
 				return result.Conn, nil
 			}
 			connErrors = append(connErrors, result.error)

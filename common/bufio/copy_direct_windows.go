@@ -216,6 +216,7 @@ func (w *syscallPacketReadWaiter) InitializeReadWaiter(options N.ReadWaitOptions
 			// socket is readable if we return false. So the `recvfrom` syscall will not block the system thread.
 			return false
 		}
+		w.hasData = false
 		buffer := w.options.NewPacketBuffer()
 		var readN int
 		var from windows.Sockaddr
@@ -238,7 +239,6 @@ func (w *syscallPacketReadWaiter) InitializeReadWaiter(options N.ReadWaitOptions
 				w.readFrom = M.SocksaddrFrom(netip.AddrFrom16(fromAddr.Addr), uint16(fromAddr.Port)).Unwrap()
 			}
 		}
-		w.hasData = false
 		return true
 	}
 	return false
